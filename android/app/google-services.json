@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "481416959530",
+    "project_id": "cmpwellnes",
+    "storage_bucket": "cmpwellnes.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:481416959530:android:19b7bd4e139c3d007c5553",
+        "android_client_info": {
+          "package_name": "com.campus_wellness_app.org"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBY3aeRffj0NDDMF3fgC-5w2Rj6RzalxuI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:481416959530:android:26cbbb268b18c3c87c5553",
+        "android_client_info": {
+          "package_name": "com.kingdom.campuswellnes"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBY3aeRffj0NDDMF3fgC-5w2Rj6RzalxuI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
