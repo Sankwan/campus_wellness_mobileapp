@@ -6,6 +6,7 @@ class MeditationModel {
   final int duration; // Duration in minutes
   final String? audioUrl; // URL to audio file
   final String? imageUrl; // Background image
+  final String? youtubeId; // YouTube video ID
   final String instructor; // Instructor name
   final List<String> tags;
   final int difficulty; // 1-3 (beginner, intermediate, advanced)
@@ -24,6 +25,7 @@ class MeditationModel {
     required this.duration,
     this.audioUrl,
     this.imageUrl,
+    this.youtubeId,
     required this.instructor,
     this.tags = const [],
     this.difficulty = 1,
@@ -44,6 +46,7 @@ class MeditationModel {
       'duration': duration,
       'audioUrl': audioUrl,
       'imageUrl': imageUrl,
+      'youtubeId': youtubeId,
       'instructor': instructor,
       'tags': tags,
       'difficulty': difficulty,
@@ -65,6 +68,7 @@ class MeditationModel {
       duration: map['duration'] ?? 0,
       audioUrl: map['audioUrl'],
       imageUrl: map['imageUrl'],
+      youtubeId: map['youtubeId'],
       instructor: map['instructor'] ?? '',
       tags: List<String>.from(map['tags'] ?? []),
       difficulty: map['difficulty'] ?? 1,
@@ -85,6 +89,7 @@ class MeditationModel {
     int? duration,
     String? audioUrl,
     String? imageUrl,
+    String? youtubeId,
     String? instructor,
     List<String>? tags,
     int? difficulty,
@@ -103,6 +108,7 @@ class MeditationModel {
       duration: duration ?? this.duration,
       audioUrl: audioUrl ?? this.audioUrl,
       imageUrl: imageUrl ?? this.imageUrl,
+      youtubeId: youtubeId ?? this.youtubeId,
       instructor: instructor ?? this.instructor,
       tags: tags ?? this.tags,
       difficulty: difficulty ?? this.difficulty,

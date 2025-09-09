@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../theme.dart';
 
 class MoodQuickLog extends StatefulWidget {
@@ -43,22 +44,45 @@ class _MoodQuickLogState extends State<MoodQuickLog> {
           children: [
             Row(
               children: [
-                Icon(
-                  Icons.mood,
-                  color: AppTheme.primaryGreen,
-                  size: 24,
+                Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        AppTheme.primaryGreen,
+                        AppTheme.lightGreen,
+                      ],
+                    ),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.psychology,
+                    color: Colors.white,
+                    size: 18,
+                  ),
                 ),
-                const SizedBox(width: 8),
-                Text(
-                  'Quick Mood Check',
-                  style: theme.textTheme.headlineSmall,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        ' Mood Check 💚',
+                        style: theme.textTheme.headlineSmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Text(
+                        'How are you feeling on campus today?',
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'How are you feeling right now?',
-              style: theme.textTheme.bodyMedium,
             ),
             const SizedBox(height: 20),
             widget.isLoading
@@ -78,29 +102,51 @@ class _MoodQuickLogState extends State<MoodQuickLog> {
                         
                         return GestureDetector(
                           onTap: widget.isLoading ? null : () {
+                            // Haptic feedback for better user experience
+                            HapticFeedback.lightImpact();
+                            
                             setState(() {
                               selectedMoodIndex = index;
                             });
                             
                             // Add slight delay for visual feedback
-                            Future.delayed(const Duration(milliseconds: 200), () {
+                            Future.delayed(const Duration(milliseconds: 300), () {
                               widget.onMoodSelected(mood['label'], mood['rating']);
                             });
                           },
                           child: AnimatedContainer(
-                            duration: const Duration(milliseconds: 200),
+                            duration: const Duration(milliseconds: 300),
+                            curve: Curves.elasticOut,
+                            margin: const EdgeInsets.symmetric(horizontal: 4),
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
+                              gradient: isSelected 
+                                  ? LinearGradient(
+                                      colors: [
+                                        AppTheme.primaryGreen.withOpacity(0.15),
+                                        AppTheme.lightGreen.withOpacity(0.10),
+                                      ],
+                                      begin: Alignment.topLeft,
+                                      end: Alignment.bottomRight,
+                                    )
+                                  : null,
                               color: isSelected 
-                                  ? AppTheme.primaryGreen.withOpacity(0.1)
-                                  : Colors.transparent,
-                              borderRadius: BorderRadius.circular(12),
+                                  ? null
+                                  : Colors.grey.withOpacity(0.05),
+                              borderRadius: BorderRadius.circular(16),
                               border: Border.all(
                                 color: isSelected 
                                     ? AppTheme.primaryGreen 
-                                    : Colors.transparent,
-                                width: 2,
+                                    : Colors.grey.withOpacity(0.2),
+                                width: isSelected ? 2.5 : 1,
                               ),
+                              boxShadow: isSelected ? [
+                                BoxShadow(
+                                  color: AppTheme.primaryGreen.withOpacity(0.2),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ] : null,
                             ),
                             child: Column(
                               children: [

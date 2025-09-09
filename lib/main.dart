@@ -15,8 +15,11 @@ import 'screens/meditation_screen.dart';
 import 'screens/profile_screen.dart';
 import 'screens/ai_chatbot_screen.dart';
 import 'screens/mood_assessment_screen.dart';
+import 'screens/emergency_screen.dart';
+import 'screens/daily_affirmations_screen.dart';
 // import 'screens/onboarding/onboarding_screen.dart';
 import 'screens/privacy/privacy_settings_screen.dart';
+import 'test_youtube.dart'; // Test YouTube integration
 import 'theme.dart';
 
 void main() async {
@@ -86,8 +89,11 @@ class _CampusWellnessAppState extends State<CampusWellnessApp> {
         '/profile': (context) => const ProfileScreen(),
         '/ai-chatbot': (context) => const AiChatbotScreen(),
         '/mood-assessment': (context) => const MoodAssessmentScreen(),
+        '/emergency': (context) => const EmergencyScreen(),
+        '/affirmations': (context) => const DailyAffirmationsScreen(),
         // '/new-onboarding': (context) => const OnboardingScreen(),
         '/privacy-settings': (context) => const PrivacySettingsScreen(),
+        '/test-youtube': (context) => const TestYouTubePage(),
       },
     );
   }

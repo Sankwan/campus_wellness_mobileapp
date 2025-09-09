@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
@@ -6,6 +7,7 @@ import '../models/user_model.dart';
 import '../models/mood_model.dart';
 import '../models/journal_model.dart';
 import '../models/meditation_model.dart';
+import '../models/auth_result.dart';
 
 class FirebaseService {
   static final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -18,6 +20,9 @@ class FirebaseService {
   static const String journalsCollection = 'journals';
   static const String meditationsCollection = 'meditations';
   static const String sessionsCollection = 'meditation_sessions';
+  
+  // Timeout duration for network operations
+  static const Duration _networkTimeout = Duration(seconds: 15);
 
   // Authentication Methods
   static Future<User?> signInWithEmailAndPassword(
@@ -81,6 +86,93 @@ class FirebaseService {
 
   static Stream<User?> get authStateChanges => _auth.authStateChanges();
 
+  /// Enhanced sign in with better error handling
+  static Future<AuthResult> signInWithEmailAndPasswordEnhanced(
+      String email, String password) async {
+    try {
+      // Directly attempt sign in without pre-checking user existence
+      // Let Firebase handle the user existence check naturally
+      UserCredential result = await _auth
+          .signInWithEmailAndPassword(email: email, password: password)
+          .timeout(_networkTimeout);
+          
+      return AuthResult.success(result.user);
+    } on FirebaseAuthException catch (e) {
+      switch (e.code) {
+        case 'user-not-found':
+          return AuthResult.userNotFound(
+            'No HTU student account found with this email. Would you like to create a new account?'
+          );
+        case 'wrong-password':
+          return AuthResult.error('Incorrect password. Please try again or reset your password.');
+        case 'invalid-email':
+          return AuthResult.error('Please enter a valid HTU email address.');
+        case 'invalid-credential':
+          return AuthResult.error('Invalid credentials. Please check your email and password.');
+        case 'user-disabled':
+          return AuthResult.error('This HTU account has been disabled. Please contact support.');
+        case 'too-many-requests':
+          return AuthResult.error('Too many failed attempts. Please wait a moment before trying again.');
+        case 'network-request-failed':
+          return AuthResult.networkError('Network error. Please check your internet connection and try again.');
+        default:
+          print('FirebaseAuthException in signIn: ${e.code} - ${e.message}');
+          return AuthResult.error('Sign in failed. Please try again.');
+      }
+    } on TimeoutException {
+      return AuthResult.networkError('Connection timeout. Please check your internet connection and try again.');
+    } catch (e) {
+      print('Unexpected error in signIn: $e');
+      return AuthResult.networkError('Unable to connect to HTU wellness services. Please check your internet connection.');
+    }
+  }
+
+  /// Enhanced user creation with Firebase's natural error handling
+  static Future<AuthResult> createUserWithEmailAndPasswordEnhanced(
+      String email, String password, String displayName) async {
+    try {
+      // Directly attempt user creation - let Firebase handle the email-already-in-use check
+      UserCredential result = await _auth
+          .createUserWithEmailAndPassword(email: email, password: password)
+          .timeout(_networkTimeout);
+      
+      if (result.user != null) {
+        // Update display name
+        await result.user!.updateDisplayName(displayName);
+        
+        // Create user document
+        await createUserDocument(result.user!, displayName);
+        
+        return AuthResult.success(result.user);
+      } else {
+        return AuthResult.error('Account creation failed. Please try again.');
+      }
+    } on FirebaseAuthException catch (e) {
+      switch (e.code) {
+        case 'email-already-in-use':
+          return AuthResult.userExists(
+            'An HTU student account already exists with this email. Please sign in instead.'
+          );
+        case 'invalid-email':
+          return AuthResult.error('Please enter a valid HTU email address.');
+        case 'operation-not-allowed':
+          return AuthResult.error('Email/password accounts are not enabled. Please contact support.');
+        case 'weak-password':
+          return AuthResult.error('Password is too weak. Please choose a stronger password.');
+        case 'network-request-failed':
+          return AuthResult.networkError('Network error. Please check your internet connection and try again.');
+        default:
+          print('FirebaseAuthException in createUser: ${e.code} - ${e.message}');
+          return AuthResult.error('Account creation failed. Please try again.');
+      }
+    } on TimeoutException {
+      return AuthResult.networkError('Connection timeout. Please check your internet connection and try again.');
+    } catch (e) {
+      print('Unexpected error in createUser: $e');
+      return AuthResult.networkError('Unable to connect to HTU wellness services. Please check your internet connection.');
+    }
+  }
+
   // User Document Methods
   static Future<void> createUserDocument(User user, String displayName) async {
     try {
@@ -135,8 +227,11 @@ class FirebaseService {
   // Mood Methods
   static Future<String> saveMood(MoodModel mood) async {
     try {
+      // Save mood as subcollection under user document
       DocumentReference docRef = await _firestore
-          .collection(moodsCollection)
+          .collection(usersCollection)
+          .doc(mood.userId)
+          .collection('moods')
           .add(mood.toMap());
       
       // Update user's mood count
@@ -152,8 +247,9 @@ class FirebaseService {
   static Future<List<MoodModel>> getUserMoods(String userId, {int? limit}) async {
     try {
       Query query = _firestore
-          .collection(moodsCollection)
-          .where('userId', isEqualTo: userId)
+          .collection(usersCollection)
+          .doc(userId)
+          .collection('moods')
           .orderBy('timestamp', descending: true);
 
       if (limit != null) {
@@ -177,8 +273,9 @@ class FirebaseService {
       String userId, DateTime startDate, DateTime endDate) async {
     try {
       QuerySnapshot snapshot = await _firestore
-          .collection(moodsCollection)
-          .where('userId', isEqualTo: userId)
+          .collection(usersCollection)
+          .doc(userId)
+          .collection('moods')
           .where('timestamp', isGreaterThanOrEqualTo: startDate.millisecondsSinceEpoch)
           .where('timestamp', isLessThanOrEqualTo: endDate.millisecondsSinceEpoch)
           .orderBy('timestamp', descending: false)
@@ -350,8 +447,11 @@ static Future<void> _incrementUserJournalCount(String userId, {int delta = 1}) a
   // Meditation Session Methods
   static Future<String> startMeditationSession(MeditationSession session) async {
     try {
+      // Save meditation session as subcollection under user document
       DocumentReference docRef = await _firestore
-          .collection(sessionsCollection)
+          .collection(usersCollection)
+          .doc(session.userId)
+          .collection('meditation_sessions')
           .add(session.toMap());
       
       return docRef.id;
@@ -364,8 +464,11 @@ static Future<void> _incrementUserJournalCount(String userId, {int delta = 1}) a
   static Future<void> completeMeditationSession(
       String sessionId, MeditationSession session) async {
     try {
+      // Update meditation session in user's subcollection
       await _firestore
-          .collection(sessionsCollection)
+          .collection(usersCollection)
+          .doc(session.userId)
+          .collection('meditation_sessions')
           .doc(sessionId)
           .update(session.toMap());
       
@@ -384,8 +487,9 @@ static Future<void> _incrementUserJournalCount(String userId, {int delta = 1}) a
       String userId, {int? limit}) async {
     try {
       Query query = _firestore
-          .collection(sessionsCollection)
-          .where('userId', isEqualTo: userId)
+          .collection(usersCollection)
+          .doc(userId)
+          .collection('meditation_sessions')
           .orderBy('startTime', descending: true);
 
       if (limit != null) {

@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../theme.dart';
 import '../services/firebase_service.dart';
 import '../services/data_export_service.dart';
+import '../widgets/retry_dialog.dart';
 import '../models/user_model.dart';
 
 class ProfileScreen extends StatefulWidget {
@@ -55,10 +56,23 @@ class _ProfileScreenState extends State<ProfileScreen> {
         await _loadUserStats(user.uid);
       }
     } catch (e) {
-      setState(() {
-        errorMessage = 'Failed to load profile data';
-      });
       print('Error loading profile: $e');
+      
+      if (mounted) {
+        final shouldRetry = await HoTechRetryDialog.show(
+          context: context,
+          title: 'HTU Profile Loading Issue',
+          message: 'Unable to load your profile. Let\'s refresh your wellness data!',
+        );
+        
+        if (shouldRetry == true) {
+          _loadUserProfile(); // Retry
+        } else {
+          setState(() {
+            errorMessage = 'HTU profile data unavailable. Pull to refresh when ready.';
+          });
+        }
+      }
     } finally {
       setState(() {
         isLoading = false;
@@ -169,11 +183,35 @@ class _ProfileScreenState extends State<ProfileScreen> {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: Text(
-          'Profile',
-          style: theme.textTheme.headlineSmall?.copyWith(
-            fontWeight: FontWeight.bold,
-          ),
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 24,
+              height: 24,
+              decoration: BoxDecoration(
+                color: AppTheme.primaryGreen.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Center(
+                child: Text(
+                  'HTU',
+                  style: TextStyle(
+                    color: AppTheme.primaryGreen,
+                    fontSize: 8,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              'Student Profile',
+              style: theme.textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
         ),
         centerTitle: true,
         actions: [
@@ -728,15 +766,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  void _exportUserData() async {
-    final user = FirebaseService.getCurrentUser();
-    if (user != null) {
-      await DataExportService.exportUserData(
-        context: context,
-        userId: user.uid,
-      );
-    }
+  void _exportUserData() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: const Text('Export Data coming soon!'),
+        backgroundColor: AppTheme.primaryGreen,
+      ),
+    );
   }
+
 
   void _shareApp() {
     // TODO: Implement app sharing

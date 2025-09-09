@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'dart:async';
 import '../models/meditation_model.dart';
 import '../theme.dart';
-import '../services/ambient_sound_service.dart';
+import '../services/audio_service.dart';
+import '../widgets/toast.dart';
 
 class MeditationPlayerScreen extends StatefulWidget {
   final MeditationModel meditation;
@@ -32,13 +33,16 @@ class _MeditationPlayerScreenState extends State<MeditationPlayerScreen>
   late Animation<double> _breatheAnimation;
   late Animation<double> _rippleAnimation;
   
-  final AmbientSoundService _soundService = AmbientSoundService();
+  final AudioService _audioService = AudioService.instance;
   AmbientSoundType _selectedSound = AmbientSoundType.none;
 
   @override
   void initState() {
     super.initState();
     totalSeconds = widget.meditation.duration * 60;
+    
+    // Initialize audio service
+    _audioService.initialize();
     
     // Initialize animations
     _breatheController = AnimationController(
@@ -118,12 +122,13 @@ class _MeditationPlayerScreenState extends State<MeditationPlayerScreen>
     });
   }
 
-  void _togglePlayPause() {
+  void _togglePlayPause() async {
     setState(() {
       isPlaying = !isPlaying;
     });
     
     if (isPlaying) {
+      // Resume meditation
       _breatheController.repeat(reverse: true);
       _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
         if (currentSeconds < totalSeconds) {
@@ -134,19 +139,35 @@ class _MeditationPlayerScreenState extends State<MeditationPlayerScreen>
           _completeMeditation();
         }
       });
+      
+      // Resume ambient sound if there was one playing
+      if (_selectedSound != AmbientSoundType.none) {
+        await _audioService.resume();
+      }
     } else {
+      // Pause meditation
       _breatheController.stop();
       _timer?.cancel();
+      
+      // Pause ambient sound
+      await _audioService.pause();
     }
   }
 
   void _completeMeditation() {
     _timer?.cancel();
     _breatheController.stop();
+    _audioService.stop(); // Stop ambient sound
     
     setState(() {
       isPlaying = false;
     });
+    
+    ToastService.showSuccess(
+      context: context,
+      title: 'Session Complete! 🎉',
+      description: 'Great job completing your ${widget.meditation.duration}-minute meditation',
+    );
     
     // Show completion dialog
     _showCompletionDialog();
@@ -215,6 +236,7 @@ class _MeditationPlayerScreenState extends State<MeditationPlayerScreen>
     _prepareTimer?.cancel();
     _breatheController.dispose();
     _rippleController.dispose();
+    _audioService.stop(); // Stop any playing sounds
     super.dispose();
   }
 
@@ -228,49 +250,60 @@ class _MeditationPlayerScreenState extends State<MeditationPlayerScreen>
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     
-    return Scaffold(
-      backgroundColor: Colors.black,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.close, color: Colors.white),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-        title: Text(
-          widget.meditation.title,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
+    return WillPopScope(
+      onWillPop: () async {
+        // Stop audio when back button is pressed
+        await _audioService.stop();
+        return true;
+      },
+      child: Scaffold(
+        backgroundColor: Colors.black,
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.close, color: Colors.white),
+            onPressed: () {
+              // Stop audio when leaving the screen
+              _audioService.stop();
+              Navigator.of(context).pop();
+            },
           ),
+          title: Text(
+            widget.meditation.title,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          centerTitle: true,
         ),
-        centerTitle: true,
-      ),
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Colors.black,
-              AppTheme.primaryGreen.withOpacity(0.1),
-              Colors.black,
+        body: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Colors.black,
+                AppTheme.primaryGreen.withOpacity(0.1),
+                Colors.black,
+              ],
+            ),
+          ),
+          child: Column(
+            children: [
+              // Preparation or main content
+              Expanded(
+                child: isPreparing 
+                    ? _buildPreparationPhase()
+                    : _buildMeditationPhase(),
+              ),
+              
+              // Controls
+              if (!isPreparing) _buildControls(theme),
             ],
           ),
-        ),
-        child: Column(
-          children: [
-            // Preparation or main content
-            Expanded(
-              child: isPreparing 
-                  ? _buildPreparationPhase()
-                  : _buildMeditationPhase(),
-            ),
-            
-            // Controls
-            if (!isPreparing) _buildControls(theme),
-          ],
         ),
       ),
     );
@@ -334,117 +367,116 @@ class _MeditationPlayerScreenState extends State<MeditationPlayerScreen>
   }
 
   Widget _buildMeditationPhase() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          // Progress indicator
-          Text(
-            _formatTime(totalSeconds - currentSeconds),
-            style: const TextStyle(
-              color: Colors.white70,
-              fontSize: 18,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          const SizedBox(height: 10),
-          SizedBox(
-            width: 200,
-            child: LinearProgressIndicator(
-              value: currentSeconds / totalSeconds,
-              backgroundColor: Colors.white24,
-              valueColor: AlwaysStoppedAnimation<Color>(
-                AppTheme.primaryGreen,
-              ),
-            ),
-          ),
-          const SizedBox(height: 60),
-          
-          // Breathing animation
-          Stack(
-            alignment: Alignment.center,
+    return SingleChildScrollView(
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 32.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // Ripple effect
-              AnimatedBuilder(
-                animation: _rippleAnimation,
-                builder: (context, child) {
-                  return Container(
-                    width: 200 + (_rippleAnimation.value * 100),
-                    height: 200 + (_rippleAnimation.value * 100),
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: AppTheme.primaryGreen.withOpacity(
-                          0.5 - (_rippleAnimation.value * 0.5),
-                        ),
-                        width: 2,
-                      ),
-                    ),
-                  );
-                },
-              ),
-              
-              // Main breathing circle
-              AnimatedBuilder(
-                animation: _breatheAnimation,
-                builder: (context, child) {
-                  return Transform.scale(
-                    scale: _breatheAnimation.value,
-                    child: Container(
-                      width: 200,
-                      height: 200,
-                      decoration: BoxDecoration(
-                        gradient: RadialGradient(
-                          colors: [
-                            AppTheme.primaryGreen.withOpacity(0.7),
-                            AppTheme.primaryGreen.withOpacity(0.3),
-                            Colors.transparent,
-                          ],
-                        ),
-                        shape: BoxShape.circle,
-                      ),
-                    ),
-                  );
-                },
-              ),
-              
-              // Center dot
-              Container(
-                width: 20,
-                height: 20,
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
+              // Progress indicator
+              Text(
+                _formatTime(totalSeconds - currentSeconds),
+                style: const TextStyle(
+                  color: Colors.white70,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w500,
                 ),
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                width: 200,
+                child: LinearProgressIndicator(
+                  value: currentSeconds / totalSeconds,
+                  backgroundColor: Colors.white24,
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    AppTheme.primaryGreen,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 60),
+              // Breathing animation
+              Stack(
+                alignment: Alignment.center,
+                children: [
+                  // Ripple effect
+                  AnimatedBuilder(
+                    animation: _rippleAnimation,
+                    builder: (context, child) {
+                      return Container(
+                        width: 200 + (_rippleAnimation.value * 100),
+                        height: 200 + (_rippleAnimation.value * 100),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: AppTheme.primaryGreen.withOpacity(
+                              0.5 - (_rippleAnimation.value * 0.5),
+                            ),
+                            width: 2,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                  // Main breathing circle
+                  AnimatedBuilder(
+                    animation: _breatheAnimation,
+                    builder: (context, child) {
+                      return Transform.scale(
+                        scale: _breatheAnimation.value,
+                        child: Container(
+                          width: 200,
+                          height: 200,
+                          decoration: BoxDecoration(
+                            gradient: RadialGradient(
+                              colors: [
+                                AppTheme.primaryGreen.withOpacity(0.7),
+                                AppTheme.primaryGreen.withOpacity(0.3),
+                                Colors.transparent,
+                              ],
+                            ),
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                  // Center dot
+                  Container(
+                    width: 20,
+                    height: 20,
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 60),
+              // Breathing instruction
+              AnimatedBuilder(
+                animation: _breatheController,
+                builder: (context, child) {
+                  String instruction;
+                  if (_breatheController.value < 0.5) {
+                    instruction = 'Breathe In';
+                  } else {
+                    instruction = 'Breathe Out';
+                  }
+                  return Text(
+                    instruction,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 24,
+                      fontWeight: FontWeight.w300,
+                      letterSpacing: 1.5,
+                    ),
+                  );
+                },
               ),
             ],
           ),
-          
-          const SizedBox(height: 60),
-          
-          // Breathing instruction
-          AnimatedBuilder(
-            animation: _breatheController,
-            builder: (context, child) {
-              String instruction;
-              if (_breatheController.value < 0.5) {
-                instruction = 'Breathe In';
-              } else {
-                instruction = 'Breathe Out';
-              }
-              
-              return Text(
-                instruction,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 24,
-                  fontWeight: FontWeight.w300,
-                  letterSpacing: 1.5,
-                ),
-              );
-            },
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -554,13 +586,14 @@ class _MeditationPlayerScreenState extends State<MeditationPlayerScreen>
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    AmbientSoundService.getSoundOption(_selectedSound).icon,
-                    style: const TextStyle(fontSize: 16),
+                  const Icon(
+                    Icons.music_note,
+                    color: Colors.white,
+                    size: 16,
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    AmbientSoundService.getSoundOption(_selectedSound).name,
+                    AudioService.getSoundDisplayName(_selectedSound),
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 14,
@@ -575,6 +608,7 @@ class _MeditationPlayerScreenState extends State<MeditationPlayerScreen>
     );
   }
   
+  //Sound selector widget
   Widget _buildSoundSelector() {
     return Container(
       margin: const EdgeInsets.only(bottom: 20),
@@ -602,14 +636,33 @@ class _MeditationPlayerScreenState extends State<MeditationPlayerScreen>
           Wrap(
             spacing: 12,
             runSpacing: 12,
-            children: AmbientSoundService.availableSounds.map((sound) {
-              final isSelected = _selectedSound == sound.type;
+            children: AudioService.getAllSoundTypes().map((soundType) {
+              final isSelected = _selectedSound == soundType;
+              final displayName = AudioService.getSoundDisplayName(soundType);
+              
               return GestureDetector(
                 onTap: () async {
                   setState(() {
-                    _selectedSound = sound.type;
+                    _selectedSound = soundType;
+                    showSoundSelector = false; // Auto-close selector
                   });
-                  await _soundService.playSound(sound.type);
+                  
+                  try {
+                    await _audioService.playAmbientSound(soundType);
+                    if (soundType != AmbientSoundType.none) {
+                      ToastService.showInfo(
+                        context: context,
+                        title: '♪ Now Playing',
+                        description: displayName,
+                      );
+                    }
+                  } catch (e) {
+                    ToastService.showError(
+                      context: context,
+                      title: 'Audio Error',
+                      description: 'Failed to play selected sound',
+                    );
+                  }
                 },
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -628,17 +681,24 @@ class _MeditationPlayerScreenState extends State<MeditationPlayerScreen>
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(
-                        sound.icon,
-                        style: const TextStyle(fontSize: 16),
+                      Icon(
+                        soundType == AmbientSoundType.none 
+                            ? Icons.volume_off
+                            : Icons.music_note,
+                        color: isSelected ? Colors.white : Colors.white70,
+                        size: 16,
                       ),
                       const SizedBox(width: 8),
-                      Text(
-                        sound.name,
-                        style: TextStyle(
-                          color: isSelected ? Colors.white : Colors.white70,
-                          fontSize: 14,
-                          fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                      Flexible(
+                        child: Text(
+                          displayName,
+                          style: TextStyle(
+                            color: isSelected ? Colors.white : Colors.white70,
+                            fontSize: 14,
+                            fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                     ],

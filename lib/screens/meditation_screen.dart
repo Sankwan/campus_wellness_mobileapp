@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../theme.dart';
 import '../models/meditation_model.dart';
 import '../widgets/main_navigation.dart';
 import 'meditation_player_screen.dart';
-import '../services/ambient_sound_service.dart';
+import 'youtube_meditation_player.dart';
+import '../widgets/toast.dart';
 
 class MeditationScreen extends StatefulWidget {
   const MeditationScreen({super.key});
@@ -41,7 +41,7 @@ class _MeditationScreenState extends State<MeditationScreen> with SingleTickerPr
     MeditationContent(
       id: 'g1',
       title: 'Breathing Focus',
-      description: 'Simple breathing meditation with countdown timer',
+      description: 'Simple breathing meditation',
       category: 'Breathing',
       duration: 5,
       type: MeditationType.guided,
@@ -143,9 +143,9 @@ class _MeditationScreenState extends State<MeditationScreen> with SingleTickerPr
       category: 'Mindfulness',
       duration: 20,
       type: MeditationType.guided,
-      instructor: 'The Honest Guys',
-      youtubeId: 'QS2yDmWk0vs',
-      thumbnailUrl: 'https://img.youtube.com/vi/QS2yDmWk0vs/maxresdefault.jpg',
+      instructor: 'Priory',
+      youtubeId: 'aH72AScs0qk',
+      thumbnailUrl: 'https://img.youtube.com/vi/aH72AScs0qk/maxresdefault.jpg',
       difficulty: 'Intermediate',
       rating: 4.8,
     ),
@@ -157,8 +157,8 @@ class _MeditationScreenState extends State<MeditationScreen> with SingleTickerPr
       duration: 45,
       type: MeditationType.sleep,
       instructor: 'Jason Stephenson',
-      youtubeId: 'aAVopGm-NH0',
-      thumbnailUrl: 'https://img.youtube.com/vi/aAVopGm-NH0/maxresdefault.jpg',
+      youtubeId: 'g0jfhRcXtLQ',
+      thumbnailUrl: 'https://img.youtube.com/vi/g0jfhRcXtLQ/maxresdefault.jpg',
       difficulty: 'Beginner',
       rating: 4.9,
     ),
@@ -245,7 +245,7 @@ class _MeditationScreenState extends State<MeditationScreen> with SingleTickerPr
                       const Text(
                         'Find your inner peace',
                         style: TextStyle(
-                          color: Colors.white70,
+                          color: Colors.white,
                           fontSize: 16,
                         ),
                       ),
@@ -254,16 +254,21 @@ class _MeditationScreenState extends State<MeditationScreen> with SingleTickerPr
                       // Tab Bar
                       Container(
                         height: 50,
+                        // width: 400,
                         decoration: BoxDecoration(
                           color: Colors.white.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(25),
+                          borderRadius: BorderRadius.circular(10),
                         ),
                         child: TabBar(
+                          dividerColor: Colors.white,
                           controller: _tabController,
+                          isScrollable: true, 
+                          indicatorSize: TabBarIndicatorSize.tab,
                           indicator: BoxDecoration(
                             color: Colors.white,
-                            borderRadius: BorderRadius.circular(10),
+                            borderRadius: BorderRadius.circular(10), 
                           ),
+                          indicatorPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                           labelColor: AppTheme.primaryGreen,
                           unselectedLabelColor: Colors.white,
                           labelStyle: const TextStyle(
@@ -274,9 +279,10 @@ class _MeditationScreenState extends State<MeditationScreen> with SingleTickerPr
                             fontWeight: FontWeight.w500,
                             fontSize: 16,
                           ),
+                          labelPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
                           tabs: const [
-                            Tab(text: 'Guided Sessions'),
-                            Tab(text: 'YouTube Videos'),
+                            Tab(child: Text('Guided Sessions')),
+                            Tab(child: Text('YouTube Videos')),
                           ],
                         ),
                       ),
@@ -401,7 +407,7 @@ class _MeditationScreenState extends State<MeditationScreen> with SingleTickerPr
                     ),
                     const SizedBox(width: 8),
                     const Text(
-                      'Built-in Timer Sessions',
+                      'Timer Sessions for Focus',
                       style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
@@ -411,7 +417,7 @@ class _MeditationScreenState extends State<MeditationScreen> with SingleTickerPr
                 ),
                 const SizedBox(height: 8),
                 const Text(
-                  'Meditation sessions with countdown timer and ambient sounds. Works offline.',
+                  'Different meditation sessions tailored for your specific needs. All sessions can be played with ambient sounds.',
                   style: TextStyle(
                     fontSize: 14,
                     color: Colors.grey,
@@ -623,41 +629,87 @@ class _MeditationScreenState extends State<MeditationScreen> with SingleTickerPr
         ),
         child: InkWell(
           onTap: () {
-            _playMeditation(meditation);
+            _playYouTubeVideo(meditation);
           },
           borderRadius: BorderRadius.circular(16),
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Row(
               children: [
-                // Thumbnail
+                // Thumbnail with overlay
                 Container(
                   width: 80,
                   height: 80,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(12),
-                    image: DecorationImage(
-                      image: NetworkImage(meditation.thumbnailUrl ?? ''),
-                      fit: BoxFit.cover,
-                      onError: (exception, stackTrace) {
-                        // Fallback to gradient background
-                      },
-                    ),
+                    color: Colors.grey[800],
                   ),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      gradient: _getCategoryGradient(meditation.category),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(
-                      Icons.play_arrow,
-                      color: Colors.white,
-                      size: 32,
-                    ),
+                  child: Stack(
+                    children: [
+                      // Thumbnail image
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: meditation.thumbnailUrl != null
+                          ? Image.network(
+                              meditation.thumbnailUrl!,
+                              width: 80,
+                              height: 80,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) {
+                                return Container(
+                                  width: 80,
+                                  height: 80,
+                                  decoration: BoxDecoration(
+                                    gradient: _getCategoryGradient(meditation.category),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                );
+                              },
+                              loadingBuilder: (context, child, loadingProgress) {
+                                if (loadingProgress == null) return child;
+                                return Container(
+                                  width: 80,
+                                  height: 80,
+                                  decoration: BoxDecoration(
+                                    gradient: _getCategoryGradient(meditation.category),
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: const Center(
+                                    child: CircularProgressIndicator(
+                                      color: Colors.white,
+                                      strokeWidth: 2,
+                                    ),
+                                  ),
+                                );
+                              },
+                            )
+                          : Container(
+                              width: 80,
+                              height: 80,
+                              decoration: BoxDecoration(
+                                gradient: _getCategoryGradient(meditation.category),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                      ),
+                      // Play button overlay
+                      Positioned.fill(
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.black.withOpacity(0.3),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(
+                            Icons.play_circle_filled,
+                            color: Colors.white,
+                            size: 32,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
                 const SizedBox(width: 16),
-                
                 // Content
                 Expanded(
                   child: Column(
@@ -668,6 +720,8 @@ class _MeditationScreenState extends State<MeditationScreen> with SingleTickerPr
                         style: theme.textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.bold,
                         ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 4),
                       Text(
@@ -696,16 +750,19 @@ class _MeditationScreenState extends State<MeditationScreen> with SingleTickerPr
                             color: AppTheme.textLight,
                           ),
                           const SizedBox(width: 4),
-                          Text(
-                            meditation.instructor,
-                            style: theme.textTheme.bodySmall,
+                          Expanded(
+                            child: Text(
+                              meditation.instructor,
+                              style: theme.textTheme.bodySmall,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
                         ],
                       ),
                     ],
                   ),
                 ),
-                
                 // Rating and difficulty
                 Column(
                   children: [
@@ -724,6 +781,8 @@ class _MeditationScreenState extends State<MeditationScreen> with SingleTickerPr
                           color: AppTheme.primaryGreen,
                           fontWeight: FontWeight.w600,
                         ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -859,7 +918,7 @@ class _MeditationScreenState extends State<MeditationScreen> with SingleTickerPr
                                         shape: BoxShape.circle,
                                       ),
                                       child: IconButton(
-                                        onPressed: () => _launchYouTube(meditation.youtubeUrl),
+                                        onPressed: () => _playYouTubeVideo(meditation),
                                         icon: Icon(
                                           Icons.play_arrow,
                                           size: 32,
@@ -935,7 +994,7 @@ class _MeditationScreenState extends State<MeditationScreen> with SingleTickerPr
                               onPressed: () {
                                 Navigator.pop(context);
                                 if (meditation.youtubeId != null) {
-                                  _launchYouTube(meditation.youtubeUrl);
+                                  _playYouTubeVideo(meditation);
                                 } else {
                                   // Launch guided meditation player
                                   _launchGuidedMeditation(meditation);
@@ -956,12 +1015,11 @@ class _MeditationScreenState extends State<MeditationScreen> with SingleTickerPr
                           const SizedBox(width: 12),
                           IconButton(
                             onPressed: () {
-                              // TODO: Add to favorites
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text('Added "${meditation.title}" to favorites'),
-                                  backgroundColor: AppTheme.primaryGreen,
-                                ),
+                              // Add to favorites with toast
+                              ToastService.showSuccess(
+                                context: context,
+                                title: 'Added to Favorites',
+                                description: '${meditation.title} saved successfully',
                               );
                             },
                             icon: Icon(
@@ -1019,35 +1077,46 @@ class _MeditationScreenState extends State<MeditationScreen> with SingleTickerPr
     );
   }
 
-  Future<void> _launchYouTube(String? url) async {
-    if (url == null) return;
+  void _playYouTubeVideo(MeditationContent meditation) {
+    if (meditation.youtubeId == null && !meditation.youtubeUrl.contains('youtube')) {
+      ToastService.showError(
+        context: context,
+        title: 'Invalid Video',
+        description: 'This meditation does not have a valid YouTube video',
+      );
+      return;
+    }
     
     try {
-      final Uri uri = Uri.parse(url);
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(
-          uri,
-          mode: LaunchMode.externalApplication,
-        );
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text('Could not launch YouTube video'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error opening video: $e'),
-            backgroundColor: Colors.red,
+      // Create a MeditationModel for the YouTube player
+      final meditationModel = MeditationModel(
+        id: meditation.id,
+        title: meditation.title,
+        duration: meditation.duration,
+        category: meditation.category,
+        description: meditation.description,
+        audioUrl: meditation.youtubeUrl,
+        youtubeId: meditation.youtubeId,
+        instructor: meditation.instructor,
+        script: meditation.description,
+        averageRating: meditation.rating,
+        createdAt: DateTime.now(),
+      );
+      
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => YouTubeMeditationPlayer(
+            meditation: meditationModel,
           ),
-        );
-      }
+        ),
+      );
+    } catch (e) {
+      ToastService.showError(
+        context: context,
+        title: 'Navigation Error',
+        description: 'Failed to open video player: $e',
+      );
     }
   }
 
@@ -1177,12 +1246,11 @@ class GuidedMeditationPlayerScreen extends StatelessWidget {
               // TODO: Add timer and guided instructions
               ElevatedButton(
                 onPressed: () {
-                  // TODO: Start guided session
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: const Text('Guided meditation feature coming soon!'),
-                      backgroundColor: AppTheme.primaryGreen,
-                    ),
+                  // Start guided session with toast
+                  ToastService.showInfo(
+                    context: context,
+                    title: 'Coming Soon',
+                    description: 'Advanced guided meditation features are in development',
                   );
                 },
                 style: ElevatedButton.styleFrom(

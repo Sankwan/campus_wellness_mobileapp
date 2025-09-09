@@ -1,7 +1,10 @@
 import 'package:campus_wellness_app/services/firebase_service.dart';
 import 'package:flutter/material.dart';
-import 'signup_page.dart'; // Make sure this is correct
+import 'signup_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../widgets/toast.dart';
+import '../../widgets/retry_dialog.dart';
+import '../../theme.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -14,6 +17,175 @@ class _LoginPageState extends State<LoginPage> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   bool _obscurePassword = true;
+  bool _isLoading = false;
+
+  void _signIn() async {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+
+    if (email.isEmpty || password.isEmpty) {
+      ToastService.showWarning(
+        context: context,
+        title: 'Incomplete Form',
+        description: 'Please enter both HTU email and password',
+      );
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    try {
+      // Use enhanced sign in method
+      final result = await FirebaseService.signInWithEmailAndPasswordEnhanced(email, password);
+      
+      if (result.isSuccess) {
+        // Success - save login state and navigate
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool('isLoggedIn', true);
+        
+        ToastService.showSuccess(
+          context: context,
+          title: 'Welcome back, HTU student! 🎓',
+          description: 'Successfully signed in to your wellness dashboard.',
+        );
+        Navigator.pushReplacementNamed(context, '/getStarted');
+      } else if (result.userWasNotFound) {
+        // User doesn't exist - suggest signup
+        _showSignupSuggestion(result.message!);
+      } else if (result.isNetworkError) {
+        // Network error - show retry dialog
+        _showNetworkError(result.message!);
+      } else {
+        // Other error - show toast
+        ToastService.showError(
+          context: context,
+          title: 'HTU Sign In Failed',
+          description: result.message ?? 'Please check your credentials and try again.',
+        );
+      }
+    } catch (e) {
+      print('Unexpected sign in error: $e');
+      ToastService.showError(
+        context: context,
+        title: 'Connection Error',
+        description: 'Unable to connect to HTU wellness services. Please check your internet connection.',
+      );
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+  
+  void _showSignupSuggestion(String message) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: Row(
+          children: [
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: AppTheme.primaryGreen.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Center(
+                child: Text(
+                  'HTU',
+                  style: TextStyle(
+                    color: AppTheme.primaryGreen,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            const Text('New Here?'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(message),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppTheme.lightGreen.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: AppTheme.lightGreen.withOpacity(0.3),
+                ),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.school,
+                    color: AppTheme.primaryGreen,
+                    size: 16,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Join the HTU wellness community and start your mental health journey!',
+                      style: TextStyle(
+                        color: AppTheme.primaryGreen,
+                        fontSize: 13,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Try Again'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => SignupPage(
+                    initialEmail: _emailController.text.trim(),
+                  ),
+                ),
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.primaryGreen,
+            ),
+            child: const Text('Create Account'),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  void _showNetworkError(String message) async {
+    final shouldRetry = await HoTechRetryDialog.show(
+      context: context,
+      title: 'HTU Login Connection Issue',
+      message: message,
+    );
+    
+    if (shouldRetry == true) {
+      _signIn(); // Retry login
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -41,12 +213,55 @@ class _LoginPageState extends State<LoginPage> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
+                    // HTU Logo and branding
+                    Container(
+                      width: 80,
+                      height: 80,
+                      decoration: BoxDecoration(
+                        color: AppTheme.primaryGreen.withOpacity(0.9),
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppTheme.primaryGreen.withOpacity(0.3),
+                            blurRadius: 20,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.school,
+                            color: Colors.white,
+                            size: 32,
+                          ),
+                          Text(
+                            'HTU',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 20),
                     const Text(
-                      "Login",
+                      "Welcome Back",
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: 32,
                         fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      "HTU Student Wellness Portal",
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 16,
                       ),
                     ),
                     const SizedBox(height: 50),
@@ -103,41 +318,27 @@ class _LoginPageState extends State<LoginPage> {
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
-                        onPressed: () async {
-                          final email = _emailController.text.trim();
-                          final password = _passwordController.text;
-
-                          if (email.isEmpty || password.isEmpty) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Please enter email and password')),
-                            );
-                            return;
-                          }
-
-                          try {
-                            final user = await FirebaseService.signInWithEmailAndPassword(email, password);
-                            if (user != null) {
-                              final prefs = await SharedPreferences.getInstance();
-                              await prefs.setBool('isLoggedIn', true);
-                              Navigator.pushReplacementNamed(context, '/getStarted');
-                            }
-                          } catch (e) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Login failed: $e')),
-                            );
-                          }
-                        },
+                        onPressed: _isLoading ? null : _signIn,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green,
+                          backgroundColor: AppTheme.primaryGreen,
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
                         ),
-                        child: const Text(
-                          "Login",
-                          style: TextStyle(fontSize: 18),
-                        ),
+                        child: _isLoading
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  color: Colors.white,
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Text(
+                                "Sign In",
+                                style: TextStyle(fontSize: 18, color: Colors.white),
+                              ),
                       ),
                     ),
                     const SizedBox(height: 20),
@@ -165,7 +366,7 @@ class _LoginPageState extends State<LoginPage> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         const Text(
-                          "Don't have an account? ",
+                          "New Here? ",
                           style: TextStyle(color: Colors.white70),
                         ),
                         GestureDetector(
@@ -173,13 +374,15 @@ class _LoginPageState extends State<LoginPage> {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
-                                  builder: (context) => const SignupPage()),
+                                  builder: (context) => SignupPage(
+                                    initialEmail: _emailController.text.trim(),
+                                  )),
                             );
                           },
-                          child: const Text(
-                            "Sign Up",
+                          child: Text(
+                            "Join HTU Wellness",
                             style: TextStyle(
-                              color: Colors.green,
+                              color: AppTheme.lightGreen,
                               fontWeight: FontWeight.bold,
                             ),
                           ),

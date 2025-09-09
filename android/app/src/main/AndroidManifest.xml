@@ -1,8 +1,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<!-- Internet permissions for JustAudio Package -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <application
-        android:label="campus_wellness_app"
+        android:label="Campus Wellness"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/launcher_icon"
+        android:usesCleartextTraffic="true"> <!-- for justaudio package -->
         <activity
             android:name=".MainActivity"
             android:exported="true"

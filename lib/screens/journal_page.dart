@@ -5,6 +5,7 @@ import '../theme.dart';
 import '../models/journal_model.dart';
 import '../services/firebase_service.dart';
 import '../widgets/main_navigation.dart';
+import '../widgets/retry_dialog.dart';
 import 'journal_write_screen.dart';
 import 'journal_read_screen.dart';
 
@@ -18,6 +19,7 @@ class JournalPage extends StatefulWidget {
 class _JournalPageState extends State<JournalPage> {
   List<JournalModel> journals = [];
   bool isLoading = true;
+  String? errorMessage;
   String selectedFilter = 'All';
   
   final List<String> filters = ['All', 'Today', 'This Week', 'This Month'];
@@ -29,6 +31,11 @@ class _JournalPageState extends State<JournalPage> {
   }
 
   Future<void> _loadJournals() async {
+    setState(() {
+      isLoading = true;
+      errorMessage = null;
+    });
+    
     try {
       final user = FirebaseService.getCurrentUser();
       if (user != null) {
@@ -39,15 +46,24 @@ class _JournalPageState extends State<JournalPage> {
         });
       }
     } catch (e) {
-      setState(() {
-        isLoading = false;
-      });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to load journals'),
-          backgroundColor: Colors.red,
-        ),
-      );
+      print('Error loading journals: $e');
+      
+      if (mounted) {
+        final shouldRetry = await HoTechRetryDialog.show(
+          context: context,
+          title: 'Journal Loading Issue',
+          message: 'Having trouble accessing your journal entries. Let\'s reload your thoughts and reflections!',
+        );
+        
+        if (shouldRetry == true) {
+          _loadJournals(); // Retry
+        } else {
+          setState(() {
+            isLoading = false;
+            errorMessage = 'Unable to load journal entries. Pull to refresh when ready.';
+          });
+        }
+      }
     }
   }
 
@@ -90,15 +106,38 @@ class _JournalPageState extends State<JournalPage> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          'Journal',
-                          style: theme.textTheme.displaySmall?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
+                        Row(
+                          children: [
+                            Container(
+                              width: 28,
+                              height: 28,
+                              decoration: BoxDecoration(
+                                color: AppTheme.primaryGreen.withOpacity(0.1),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Center(
+                                child: Text(
+                                  'HTU',
+                                  style: TextStyle(
+                                    color: AppTheme.primaryGreen,
+                                    fontSize: 8,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Text(
+                              'Journal',
+                              style: theme.textTheme.displaySmall?.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 4),
+                        const SizedBox(height: 8),
                         Text(
-                          'Capture your thoughts and reflections',
+                          'Capture your campus thoughts and reflections 📝',
                           style: theme.textTheme.bodyMedium?.copyWith(
                             color: AppTheme.textLight,
                           ),
@@ -264,7 +303,7 @@ class _JournalPageState extends State<JournalPage> {
               Navigator.pushReplacementNamed(context, '/home');
               break;
             case 1:
-              Navigator.pushNamed(context, '/insights');
+              Navigator.pushNamed(context, '/ai-chatbot'); // FIXED: was '/insights'
               break;
             case 2:
               Navigator.pushNamed(context, '/meditation');

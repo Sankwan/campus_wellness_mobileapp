@@ -101,20 +101,27 @@ class _AiChatbotScreenState extends State<AiChatbotScreen> {
   Future<String> _getAiResponse(String message) async {
     // Open Router AI API call here
     // We will secure this better after meeting with Supervisors
-    // For now, this is okay for development purposes
-    const String apiKey = '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';
+    // For now, this is okay for development purposes (sankwan deepseek apikey)
+    const String apiKey = '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';
     const String apiUrl = 'https://openrouter.ai/api/v1/chat/completions';
     
     // Build conversation context
     String systemPrompt = """You are Dr. Wellness, a compassionate AI mental health assistant. You provide supportive, evidence-based guidance for mental wellness. 
 
 Key guidelines:
-- Always be empathetic and non-judgmental
+- Begin by introducing yourself briefly to the user.
+- You MUST ONLY respond to prompts related to mental health, psychology, therapy, and emotional wellness.
+- If a user asks a question on any other topic (e.g., programming, history, general knowledge), you MUST politely decline to answer. Your response should be: "I'm sorry, but I am specifically designed to offer support and information on mental health topics only. Is there something related to your well-being I can help you with today?"
+- Always include a gentle disclaimer encouraging users to seek help from qualified professionals for critical and severe issues. You are a support tool, not a replacement for therapy.
+- Users can reach the Ho Technical University Counseling Center for assistance. They can reach: Mr Bill K. Frimpong 057 092 1837, Precious Sappor 055 541 2406, or Prince Yeboah 024 339 9246
+- When asked about mental health issues, your purpose is to provide supportive, empathetic, and evidence-based information on topics like anxiety, depression, stress management, self-care, and therapy
+- Always be empathetic and non-judgmental when responding to the users.
 - Provide practical, actionable advice
 - Encourage professional help when appropriate
 - Never diagnose or replace professional therapy
 - Focus on wellness techniques like mindfulness, journaling, meditation
-- Be concise but caring in responses
+- Be concise but caring in responses and your formating should be nicely structured
+- Concerning the mood assessment, Depend on them to decide on whether the users issue is average, critical or severe and use that to respond to them.
 
 """;
 
@@ -130,13 +137,13 @@ Key guidelines:
     }).toList();
 
     final requestBody = {
-      "model": "anthropic/claude-3-haiku",
+      "model": "deepseek/deepseek-chat",
       "messages": [
         {"role": "system", "content": systemPrompt},
         ...conversationHistory,
         {"role": "user", "content": message}
       ],
-      "max_tokens": 500,
+      // "max_tokens": 500,
       "temperature": 0.7,
     };
 
@@ -173,7 +180,7 @@ Key guidelines:
   }
 
   void _sendAssessmentToAI(Map<String, dynamic> assessmentData) {
-    final assessmentSummary = "I just completed a mood assessment. Here are my responses: ${assessmentData.toString()}. Can you help me understand what this means for my mental wellbeing and provide some personalized recommendations?";
+    final assessmentSummary = "I just completed a mood assessment. Here are my responses: ${assessmentData.toString()}. Can you help me understand what this means for my mental wellbeing and provide some personalized recommendations? If the assessment is average, give me a response that is average and direct me to use the mindfullness section of the app. If critical or severe, provide the appropriate response and direct me to the Ho Technical University Counseling Center with their numbers to call.";
     
     _sendMessage(assessmentSummary);
   }

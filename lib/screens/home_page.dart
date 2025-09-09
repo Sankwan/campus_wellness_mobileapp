@@ -7,7 +7,9 @@ import '../widgets/daily_progress_card.dart';
 import '../widgets/quick_action_grid.dart';
 import '../widgets/insights_summary.dart';
 import '../widgets/main_navigation.dart';
+import '../widgets/retry_dialog.dart';
 import '../services/firebase_service.dart';
+import '../services/supportive_messages_service.dart';
 import '../models/user_model.dart';
 import '../models/mood_model.dart';
 
@@ -57,10 +59,24 @@ class _HomePageState extends State<HomePage> {
         await _loadUserAnalytics(user.uid);
       }
     } catch (e) {
-      setState(() {
-        errorMessage = 'Failed to load user data. Please try again.';
-      });
       print('Error loading user data: $e');
+      
+      // Show Ho Tech specific retry dialog
+      if (mounted) {
+        final shouldRetry = await HoTechRetryDialog.show(
+          context: context,
+          title: 'HTU Wellness Connection',
+          message: 'Having trouble connecting to your HTU wellness dashboard. Let\'s get you back on track!',
+        );
+        
+        if (shouldRetry == true) {
+          _loadUserData(); // Retry
+        } else {
+          setState(() {
+            errorMessage = 'Unable to load HTU wellness data. Tap to retry when ready.';
+          });
+        }
+      }
     } finally {
       setState(() {
         isLoading = false;
@@ -357,52 +373,132 @@ class _HomePageState extends State<HomePage> {
       greetingIcon = "🌙";
     }
 
-    final displayName = currentUser?.displayName ?? 'User';
+    final displayName = currentUser?.displayName ?? 'HTU Student';
 
-    return Row(
+    return Column(
       children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+        // HTU Branding
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                AppTheme.primaryGreen.withOpacity(0.1),
+                AppTheme.lightGreen.withOpacity(0.05),
+              ],
+            ),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: AppTheme.primaryGreen.withOpacity(0.2),
+            ),
+          ),
+          child: Row(
             children: [
-              isLoading
-                  ? Container(
-                      height: 28,
-                      width: 200,
-                      decoration: BoxDecoration(
-                        color: Colors.grey.withOpacity(0.3),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                    )
-                  : Text(
-                      '$greeting, $displayName $greetingIcon',
-                      style: theme.textTheme.headlineMedium,
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: AppTheme.primaryGreen.withOpacity(0.2),
+                  shape: BoxShape.circle,
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.school,
+                      color: AppTheme.primaryGreen,
+                      size: 18,
                     ),
-              const SizedBox(height: 4),
-              Text(
-                'How are you feeling today?',
-                style: theme.textTheme.bodyMedium,
+                    Text(
+                      'HTU',
+                      style: TextStyle(
+                        color: AppTheme.primaryGreen,
+                        fontSize: 8,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Ho Technical University',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: AppTheme.primaryGreen,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    Text(
+                      'Student Wellness Dashboard 💚',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: Colors.grey.shade600,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                onPressed: () {
+                  Navigator.pushNamed(context, '/profile');
+                },
+                icon: Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: AppTheme.primaryGreen.withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.person_outline,
+                    color: AppTheme.primaryGreen,
+                    size: 20,
+                  ),
+                ),
               ),
             ],
           ),
         ),
-        Container(
-          height: 50,
-          width: 50,
-          decoration: BoxDecoration(
-            color: AppTheme.primaryGreen.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(25),
-          ),
-          child: IconButton(
-            onPressed: () {
-              Navigator.pushNamed(context, '/profile');
-            },
-            icon: Icon(
-              Icons.person_outline,
-              color: AppTheme.primaryGreen,
-              size: 24,
+        const SizedBox(height: 20),
+        
+        // Personal Greeting
+        Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  isLoading
+                      ? Container(
+                          height: 28,
+                          width: 200,
+                          decoration: BoxDecoration(
+                            color: Colors.grey.withOpacity(0.3),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        )
+                      : Text(
+                          '$greeting, $displayName $greetingIcon',
+                          style: theme.textTheme.headlineMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'How are you feeling on campus today?',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
+          ],
         ),
       ],
     );
@@ -415,58 +511,132 @@ class _HomePageState extends State<HomePage> {
 
     try {
       final user = FirebaseService.getCurrentUser();
-      if (user != null) {
-        final moodModel = MoodModel(
-          id: '',
-          userId: user.uid,
-          moodType: mood,
-          emoji: _getMoodEmoji(rating),
-          moodValue: rating,
-          timestamp: DateTime.now(),
-          note: '', // Could be extended to include a note
-        );
+      if (user == null) {
+        throw Exception('User not authenticated');
+      }
+
+      // Create mood model with proper structure
+      final moodModel = MoodModel(
+        id: '', // Firestore will generate this
+        userId: user.uid,
+        moodType: mood.toLowerCase().replaceAll(' ', '_'), // 'very_sad', 'sad', etc.
+        emoji: _getMoodEmoji(rating),
+        moodValue: rating,
+        timestamp: DateTime.now(),
+        note: 'Mood logged from HTU Wellness App',
+        tags: ['quick_log', 'htu_wellness'],
+        additionalData: {
+          'source': 'home_page_quick_log',
+          'app_version': '1.0.0',
+          'platform': 'mobile',
+        },
+      );
+      
+      // Save to Firebase with debug logging
+      print('Saving mood to Firebase:');
+      print('- User ID: ${user.uid}');
+      print('- Mood Type: ${moodModel.moodType}');
+      print('- Mood Value: ${moodModel.moodValue}');
+      print('- Timestamp: ${moodModel.timestamp}');
+      
+      await FirebaseService.saveMood(moodModel);
+      
+      setState(() {
+        hasLoggedMoodToday = true;
+      });
+      
+      // Show supportive message for negative moods
+      if (mounted && rating <= 2) {
+        SupportiveMessagesService.showSupportiveMessage(context, rating);
         
-        await FirebaseService.saveMood(moodModel);
-        
-        setState(() {
-          hasLoggedMoodToday = true;
-        });
-        
-        // Refresh analytics after mood log
-        await _loadUserAnalytics(user.uid);
-        
+        // Offer crisis support for very low mood
+        if (rating == 1) {
+          Future.delayed(const Duration(seconds: 10), () {
+            if (context.mounted) {
+              _offerCrisisSupport();
+            }
+          });
+        }
+      } else if (mounted) {
+        // Positive mood celebration
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Mood logged: $mood 😊'),
+            content: Text('Great to hear, HTU student! $mood mood logged 🎉'),
             backgroundColor: AppTheme.primaryGreen,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(12),
             ),
           ),
         );
       }
+      
+      // Refresh analytics after mood log
+      await _loadUserAnalytics(user.uid);
+      
     } catch (e) {
       print('Error saving mood: $e');
+      
       setState(() {
         hasLoggedMoodToday = false; // Reset so user can try again
       });
       
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Failed to save mood. Please try again.'),
-          backgroundColor: Colors.red,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-          ),
-        ),
-      );
+      if (mounted) {
+        final shouldRetry = await HoTechRetryDialog.show(
+          context: context,
+          title: 'Mood Log Issue',
+          message: 'Couldn\'t save your mood to the HTU wellness system. Your mental health matters - let\'s try again!',
+        );
+        
+        if (shouldRetry == true) {
+          _handleMoodLog(mood, rating); // Retry
+        }
+      }
     } finally {
       setState(() {
         isSavingMood = false;
       });
     }
+  }
+  
+  void _offerCrisisSupport() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        title: Row(
+          children: [
+            Icon(
+              Icons.favorite,
+              color: Colors.red.shade400,
+            ),
+            const SizedBox(width: 8),
+            const Text('HTU Cares About You'),
+          ],
+        ),
+        content: const Text(
+          'We noticed you\'re going through a tough time. Would you like to see some support resources available to HTU students?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Not now'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              SupportiveMessagesService.showCrisisSupport(context);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.primaryGreen,
+            ),
+            child: const Text('Show Resources'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _handleQuickAction(String action) {
@@ -477,14 +647,17 @@ class _HomePageState extends State<HomePage> {
       case 'journal':
         Navigator.pushNamed(context, '/journal');
         break;
+      case 'emergency':
+        Navigator.pushNamed(context, '/emergency');
+        break;
+      case 'affirmations':
+        Navigator.pushNamed(context, '/affirmations');
+        break;
       case 'breathe':
         Navigator.pushNamed(context, '/breathing');
         break;
       case 'sleep':
         Navigator.pushNamed(context, '/sleep');
-        break;
-      case 'affirmations':
-        Navigator.pushNamed(context, '/affirmations');
         break;
       case 'cbt':
         Navigator.pushNamed(context, '/cbt');
